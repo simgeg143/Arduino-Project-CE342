@@ -9,6 +9,7 @@ int ldr = A11;
 
 int buzzer = 5;
 int relay = 6;
+int led3Pin = 46;  // Part III: LED3 controlled by INT1 interrupt
 
 int aPin = 22;
 int bPin = 23;
@@ -32,7 +33,11 @@ int potVal = 0;
 int ldrValue = 0;
 
 int displayMode = 0;
-char currentChar = ' '; 
+char currentChar = ' ';
+
+// Part III: volatile variables shared between ISR and main loop
+volatile bool led3Active = false;        // true while LED3 should be on
+volatile unsigned long led3StartTime = 0; // millis() value when interrupt fired
 
 void setup(){
   pinMode(buzzer, OUTPUT);
@@ -45,6 +50,12 @@ void setup(){
 
   pinMode(BackLight, OUTPUT);
   digitalWrite(BackLight, HIGH);
+
+  // Part III: set up LED3 and attach external interrupt on INT1 (pin 3)
+  pinMode(led3Pin, OUTPUT);
+  digitalWrite(led3Pin, LOW);              // LED3 starts off
+  pinMode(3, INPUT_PULLUP);               // pin 3 = INT1; pull-up so button press → LOW
+  attachInterrupt(digitalPinToInterrupt(3), handleINT1, FALLING); // trigger on button press
 
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
@@ -130,11 +141,24 @@ void loop(){
     digitalWrite(relay, LOW);
   }
 
+  // Part III: turn LED3 off if 10 seconds have elapsed since the interrupt
+  if (led3Active && (millis() - led3StartTime >= 10000)) {
+    led3Active = false;
+    digitalWrite(led3Pin, LOW);
+  }
+
   updateLCD();
-  
- updateSegment();
+
+  updateSegment();
 
   delay(1500);
+}
+
+// Part III: ISR — runs immediately when the button on INT1 (pin 3) is pressed
+void handleINT1() {
+  led3Active = true;           // signal to loop() that LED3 is on
+  led3StartTime = millis();    // record when the interrupt fired for the 10 s timer
+  digitalWrite(led3Pin, HIGH); // turn LED3 on instantly inside the ISR
 }
 
 void clearSegments(){
